@@ -78,5 +78,5 @@ private:
 	static void match(eFeatureAlg::E type, Mat& desc1, Mat& desc2, std::vector<DMatch>& matches);
 	static void detect_and_compute(std::string type, const Mat& img, std::vector<KeyPoint>& kpts, Mat& desc);
 public:
-	static bool FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescriptors::E desc_type, eFeatureAlg::E match_type, float& angle);
+	static bool FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescriptors::E desc_type, eFeatureAlg::E match_type, float& angle, float& percent);
 };

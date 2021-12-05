@@ -1,16 +1,17 @@
 #include "compute.h"
 
-#include <math.h>
+//#include <math.h>
+#include <minmax.h>
 
 using namespace std;
 
-map<int, string> featureDescriptors = { 
-            {eFeatureDescriptors::akaze, "akaze"}, 
-            {eFeatureDescriptors::surf, "surf"}, 
+map<int, string> featureDescriptors = {
+            {eFeatureDescriptors::akaze, "akaze"},
+            {eFeatureDescriptors::surf, "surf"},
             {eFeatureDescriptors::sink, "sink"},
             {eFeatureDescriptors::orb,"orb"},
-            {eFeatureDescriptors::brisk,"brisk"}, 
-            {eFeatureDescriptors::kaze,"kaze"},            
+            {eFeatureDescriptors::brisk,"brisk"},
+            {eFeatureDescriptors::kaze,"kaze"},
             {eFeatureDescriptors::blobfreak, "blobfreak"},
             {eFeatureDescriptors::fastfreak, "fastfreak"},
             {eFeatureDescriptors::fastdaisy, "fastdaisy"},
@@ -23,15 +24,15 @@ map<int, string> featureAlg = {
 };
 
 #define M_PI       3.14159265358979323846   // pi
-#define kDistanceCoef 1
-#define kMaxMatchingSize 1
+#define kDistanceCoef 4.0
+#define kMaxMatchingSize 50
 
 #define WFindAngleResult "Find Angle Result"
 
 int m_aHomoMethods[3] = { 4,8,16 };
 int m_iHomoMethod = 0;
 
-void compute::match(eFeatureAlg::E type, Mat& desc1, Mat& desc2, std::vector<DMatch>& matches) 
+void compute::match(eFeatureAlg::E type, Mat& desc1, Mat& desc2, std::vector<DMatch>& matches)
 {
     matches.clear();
     switch (type)
@@ -63,17 +64,21 @@ void compute::match(eFeatureAlg::E type, Mat& desc1, Mat& desc2, std::vector<DMa
     {
         return;
     }
-    std::sort(matches.begin(), matches.end());
-    while (matches.front().distance * kDistanceCoef < matches.back().distance) {
+    //std::sort(matches.begin(), matches.end()); // needful in case of any below uncommented
+    
+    // this does not work if distance of 1st element is zero!
+    /*while (matches.front().distance * kDistanceCoef < matches.back().distance) {
         matches.pop_back();
-    }
-    while (matches.size() > kMaxMatchingSize) {
+    }*/
+
+    // minimize size of matches for time saving, ignore on desktop PCs
+    /*while (matches.size() > kMaxMatchingSize) {
         matches.pop_back();
-    }
+    }*/
 }
 
 void compute::detect_and_compute(std::string type, const Mat& img, std::vector<KeyPoint>& kpts, Mat& desc)
-{    
+{
     if (type.find("fast") == 0) {
         type = type.substr(4);
         Ptr<FastFeatureDetector> detector = FastFeatureDetector::create(10, true);
@@ -137,23 +142,28 @@ void getComponents(cv::Mat const normalised_homography, float& theta)
     theta = atan2(b, a) * (180 / M_PI);
 }
 
-void drawInclination(float theta)
+void drawInclination(float theta, float pecent)
 {
-    String Stheta = ToString(theta);
+    String Stheta = ToString(theta); // save grad to string before transforming
+    theta = -theta * M_PI / 180;
+
     int tam = 200;
     Mat canvas = Mat::zeros(tam, tam, CV_8UC3);
-
-    theta = -theta * M_PI / 180;
+    
 
     line(canvas, Point(0, tam / 2), Point(tam, tam / 2), Scalar(255, 255, 255));
     line(canvas, Point(tam / 2, tam / 2), Point(tam / 2 + tam * cos(theta), tam / 2 + tam * sin(theta)), Scalar(0, 255, 0), 2);
+    
+    putText(canvas, Stheta, Point(tam - 90, tam), FONT_HERSHEY_PLAIN, 1, Scalar(0, 0, 255));
 
-    putText(canvas, Stheta, Point(tam - 100, tam), FONT_HERSHEY_PLAIN, 1, Scalar(0, 0, 255));
+    String Spercent = ToString(pecent) + "%";
+    putText(canvas, Spercent, Point(tam - 190, tam), FONT_HERSHEY_PLAIN, 1, Scalar(0, 0, 255));
+
     imshow("Inclunacion", canvas);
 
 }
 
-bool compute::FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescriptors::E desc_type, eFeatureAlg::E match_type, float& angle)
+bool compute::FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescriptors::E desc_type, eFeatureAlg::E match_type, float& angle, float& percent)
 {
     /*if (pattern.channels() != 1)
     {
@@ -217,15 +227,25 @@ bool compute::FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescri
         }
         perspectiveTransform(obj_corners, scene_corners, H);
 
+        auto P1 = scene_corners[0] + Point2f(pattern.cols, 0);
+        auto P2 = scene_corners[1] + Point2f(pattern.cols, 0);
+        auto P3 = scene_corners[2] + Point2f(pattern.cols, 0);
+        auto P4 = scene_corners[3] + Point2f(pattern.cols, 0);
         //Draw lines between the corners (the mapped pattern in the scene image )
-        line(res, scene_corners[0] + Point2f(pattern.cols, 0), scene_corners[1] + Point2f(pattern.cols, 0), Scalar(0, 255, 0), 4);
-        line(res, scene_corners[1] + Point2f(pattern.cols, 0), scene_corners[2] + Point2f(pattern.cols, 0), Scalar(0, 255, 0), 4);
-        line(res, scene_corners[2] + Point2f(pattern.cols, 0), scene_corners[3] + Point2f(pattern.cols, 0), Scalar(0, 255, 0), 4);
-        line(res, scene_corners[3] + Point2f(pattern.cols, 0), scene_corners[0] + Point2f(pattern.cols, 0), Scalar(0, 255, 0), 4);
+        line(res, P1, P2, Scalar(0, 255, 0), 4);
+        line(res, P2, P3, Scalar(0, 255, 0), 4);
+        line(res, P3, P4, Scalar(0, 255, 0), 4);
+        line(res, P4, P1, Scalar(0, 255, 0), 4);
 
+        float S1 = 0.5 * abs((P1.x - P2.x) * (P1.y + P2.y) + (P2.x - P3.x) * (P2.y + P3.y) + (P3.x - P4.x) * (P3.y + P4.y) + (P4.x - P1.x) * (P4.y + P1.y));
+        float S0 = frame.cols * frame.rows;
+        if (S0 > 0.0)
+            percent = min(100.0, 100.0 * S1 / S0);
+        else
+            percent = 0.0;
         //float theta;
         getComponents(H, angle);
-        drawInclination(angle);
+        drawInclination(angle, percent);
 
         desc1.release();
         desc2.release();
@@ -235,26 +255,4 @@ bool compute::FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescri
     cv::imshow(WFindAngleResult, res);
     //cv::waitKey(0);
 
-    /*Mat frame2;
-    Mat pattern2;
-    if (m_bThresh)
-    {
-        Thresh(frame, frame2);
-        Thresh(pattern, pattern2);
-    }
-    else
-    {
-        frame.copyTo(frame2);
-        pattern.copyTo(pattern2);
-    }
-
-
-    if (m_iPatternMethodSURF>0)
-    {
-        FindAngleSURF(frame2,pattern2,scale,angle);
-    }
-    else
-    {
-        FindAngleAkaze(frame2, pattern2,scale,angle);
-    }*/
 }
