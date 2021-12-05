@@ -241,6 +241,16 @@ bool compute::FindAngle(const Mat& frame, const cv::Mat& pattern, eFeatureDescri
         }
         perspectiveTransform(obj_corners, scene_corners, H);
 
+        scene_corners[0].x = min(max(scene_corners[0].x, 0), pattern.rows);
+        scene_corners[1].x = min(max(scene_corners[1].x, 0), pattern.rows);
+        scene_corners[2].x = min(max(scene_corners[2].x, 0), pattern.rows);
+        scene_corners[3].x = min(max(scene_corners[3].x, 0), pattern.rows);
+
+        scene_corners[0].y = min(max(scene_corners[0].y, 0), pattern.cols);
+        scene_corners[1].y = min(max(scene_corners[1].y, 0), pattern.cols);
+        scene_corners[2].y = min(max(scene_corners[2].y, 0), pattern.cols);
+        scene_corners[3].y = min(max(scene_corners[3].y, 0), pattern.cols);
+
         auto P1 = scene_corners[0] + Point2f(pattern.cols, 0);
         auto P2 = scene_corners[1] + Point2f(pattern.cols, 0);
         auto P3 = scene_corners[2] + Point2f(pattern.cols, 0);

@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
             }
             
             if (!compute::FindAngle(frame, pattern, selectedDescr, selectedAlg, angle, identity, visualizeResults))
-                continue;
+                continue;            
 
             int idi = static_cast<int>(ceil(identity));
             if (idi >= threshold)
