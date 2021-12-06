@@ -305,4 +305,5 @@ void compute::wait(int timeout)
 void compute::release()
 {
     cv::destroyAllWindows();
+    res.release();
 }
